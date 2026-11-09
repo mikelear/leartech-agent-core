@@ -221,3 +221,12 @@ func TestCorrelatedGateway_StampsTheCorrelationID(t *testing.T) {
 		t.Errorf("correlation id = %q, want sess-1", seen)
 	}
 }
+
+func TestMeter_SnapshotCarriesTheFigures(t *testing.T) {
+	m := &usage.Meter{}
+	m.Observe(withCache(100, 20, 30, 10))
+	s := m.Snapshot()
+	if s.Turns != 1 || s.Prompt != 100 || s.Completion != 20 || s.CacheRead != 30 || s.Reported != 1 {
+		t.Fatalf("snapshot = %+v", s)
+	}
+}

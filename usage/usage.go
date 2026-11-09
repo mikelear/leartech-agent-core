@@ -163,3 +163,29 @@ func Line(u aigateway.ChatUsage) string {
 	return fmt.Sprintf("%d prompt (%s) + %d completion tokens",
 		u.PromptTokens, strings.Join(parts, ", "), u.CompletionTokens)
 }
+
+// Snapshot is the meter's accumulated figures, for a caller that logs them (the
+// shell's run-total event). Returned by value under the lock, so a reader never
+// races the accumulator.
+type Snapshot struct {
+	Turns      int
+	Prompt     int
+	Completion int
+	CacheRead  int
+	CacheWrite int
+	// Reported is the count of turns whose supplier reported cache detail —
+	// absent-is-not-zero, so a caller can tell "no cache" from "cache, none hit".
+	Reported int
+}
+
+// Snapshot returns the current accumulated figures.
+//
+// proven-by: usage_test.go
+func (m *Meter) Snapshot() Snapshot {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return Snapshot{
+		Turns: m.turns, Prompt: m.prompt, Completion: m.completion,
+		CacheRead: m.cacheRead, CacheWrite: m.cacheWrite, Reported: m.reported,
+	}
+}
