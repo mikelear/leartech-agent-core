@@ -170,3 +170,42 @@ func TestInitiativeField(t *testing.T) {
 		t.Errorf("a non-string should be empty, got %q", got)
 	}
 }
+
+// These brief-content cases came from the shell's preserveonexit_test.go when the
+// cycle resolver lifted — the resumed-work path that stopped a killed-before-PR run
+// redoing its predecessor's work.
+
+func TestContext_PushedCommitsWithoutAPRTellTheModelToResume(t *testing.T) {
+	got := cycle.Context(cycle.State{Asked: true, ResumedCommits: 7, ResumedBranch: "feat/read-endpoints"})
+	for _, want := range []string{"feat/read-endpoints", "7 commit", "NOT LOST", "git log", "REACH A PULL REQUEST", "open_pr", "NOT RE-SURVEYING", "Open early"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("resumed-commits brief missing %q:\n%s", want, got)
+		}
+	}
+	if strings.Contains(got, "This is a first attempt") {
+		t.Error("a run with inherited commits was told it is a first attempt")
+	}
+}
+
+func TestContext_NoCommitsIsStillAFirstAttempt(t *testing.T) {
+	got := cycle.Context(cycle.State{Asked: true, ResumedCommits: 0})
+	if !strings.Contains(got, "first attempt") {
+		t.Errorf("a genuinely fresh run should read as a first attempt:\n%s", got)
+	}
+}
+
+func TestContext_ResumedBriefReferencesTheContinueNote(t *testing.T) {
+	got := cycle.Context(cycle.State{Asked: true, ResumedCommits: 3, ResumedBranch: "feat/x"})
+	if !strings.Contains(got, ".shipproven/CONTINUE.md") {
+		t.Errorf("resumed brief does not point at the continue note:\n%s", got)
+	}
+}
+
+func TestContext_FoundPRBriefReferencesTheContinueNote(t *testing.T) {
+	got := cycle.Context(cycle.State{Asked: true, Found: true, Number: 7, PRState: "open", Source: "status"})
+	for _, want := range []string{".shipproven/CONTINUE.md", "git diff origin/HEAD...HEAD", "do not open a second PR"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("found-PR brief missing %q:\n%s", want, got)
+		}
+	}
+}
