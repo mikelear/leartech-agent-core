@@ -222,6 +222,46 @@ func TestCorrelatedGateway_StampsTheCorrelationID(t *testing.T) {
 	}
 }
 
+// CorrelatedGatewayInGroup additionally stamps the correlation GROUP header,
+// alongside the session id, so a reader can both tie a unit to its group and
+// keep the unit distinct.
+func TestCorrelatedGatewayInGroup_StampsTheGroupAlongsideTheSession(t *testing.T) {
+	var seenSession, seenGroup string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		seenSession = r.Header.Get("X-Leartech-Session-Id")
+		seenGroup = r.Header.Get("X-Leartech-Correlation-Id")
+		w.Header().Set("Content-Type", "text/event-stream")
+		_, _ = w.Write([]byte("data: [DONE]\n\n"))
+	}))
+	t.Cleanup(srv.Close)
+
+	correlate := usage.TurnCorrelator(
+		func() string { return "sess-1" },
+		func() string { return "session" })
+	c := usage.CorrelatedGatewayInGroup(srv.URL, "key", "project-ftx-2026", correlate)
+	ch, err := c.ChatStream(context.Background(), aigateway.ChatRequest{Model: "claude"})
+	if err != nil {
+		t.Fatalf("stream: %v", err)
+	}
+	for range ch {
+	}
+	if seenSession != "sess-1" {
+		t.Errorf("session id = %q, want sess-1", seenSession)
+	}
+	if seenGroup != "project-ftx-2026" {
+		t.Errorf("group id = %q, want project-ftx-2026", seenGroup)
+	}
+}
+
+func TestGroupSource_ReadsTheCorrelationEnv(t *testing.T) {
+	if got := usage.GroupSource(envOf(map[string]string{"LEARTECH_CORRELATION_ID": "grp-9"})); got != "grp-9" {
+		t.Errorf("GroupSource = %q, want grp-9", got)
+	}
+	if got := usage.GroupSource(envOf(map[string]string{})); got != "" {
+		t.Errorf("GroupSource = %q, want empty when unset", got)
+	}
+}
+
 func TestMeter_SnapshotCarriesTheFigures(t *testing.T) {
 	m := &usage.Meter{}
 	m.Observe(withCache(100, 20, 30, 10))
