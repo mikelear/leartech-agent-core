@@ -105,6 +105,31 @@ func CorrelatedGateway(base, key string, correlate func() (value, kind string)) 
 	return aigateway.New(base, key, nil).Correlate(correlate)
 }
 
+// CorrelatedGatewayInGroup is CorrelatedGateway plus the correlation GROUP id
+// that ties this run/session to the larger effort it belongs to -- a Project's
+// research and the Plan it produces, a shell session and the sub-tasks it
+// spawns. Empty group leaves the group header absent, so this is a safe
+// superset of CorrelatedGateway.
+//
+// proven-by: usage_test.go
+func CorrelatedGatewayInGroup(base, key, group string, correlate func() (value, kind string)) *aigateway.Client {
+	c := aigateway.New(base, key, nil).Correlate(correlate)
+	if group != "" {
+		c = c.CorrelateGroup(group)
+	}
+	return c
+}
+
+// GroupSource resolves the correlation GROUP id from the environment:
+// LEARTECH_CORRELATION_ID when set, else empty. Unlike the run/session source
+// it is additive -- a caller may carry a group id with either a run or a
+// session, or on its own.
+//
+// proven-by: usage_test.go
+func GroupSource(env func(string) string) string {
+	return strings.TrimSpace(env("LEARTECH_CORRELATION_ID"))
+}
+
 // CorrelationSource resolves the id a run's turns are grouped under: the
 // registered session if any, else LEARTECH_RUN_ID (a scripted run registers no
 // session but still carries the run id), else empty.
