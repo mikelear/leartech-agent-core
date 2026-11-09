@@ -132,7 +132,7 @@ func Resolve(reg *agentloop.Registry, ui agentloop.UI, env func(string) string, 
 		}
 		if branch != "" {
 			st.ResumedBranch = branch
-			st.ResumedCommits = branchCommitsAhead(git, env("LEARTECH_AGENT_ROOT"), branch)
+			st.ResumedCommits = BranchCommitsAhead(git, env("LEARTECH_AGENT_ROOT"), branch)
 		}
 	}
 
@@ -140,10 +140,12 @@ func Resolve(reg *agentloop.Registry, ui agentloop.UI, env func(string) string, 
 	return st
 }
 
-// branchCommitsAhead counts commits on branch not on the default branch, via the
+// BranchCommitsAhead counts commits on branch not on the default branch, via the
 // injected git runner. Zero on any uncertainty: this only ADDS context, so a
 // wrong non-zero is worse than a missed signal.
-func branchCommitsAhead(git Git, root, branch string) int {
+//
+// proven-by: cycle_git_test.go
+func BranchCommitsAhead(git Git, root, branch string) int {
 	root = strings.TrimSpace(root)
 	if root == "" {
 		root = "/workspace"
