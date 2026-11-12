@@ -129,6 +129,36 @@ func contentText(blocks []mcp.Content) string {
 	return b.String()
 }
 
+// DynamicBearerTransport adds a bearer read FRESH from Token() on every request.
+// Use it when the credential changes over a long-lived client's life — a browser
+// that silently renews its short-lived access token and pushes the new one to the
+// server, say. A session built on a static BearerTransport keeps presenting the
+// connect-time token and starts 401ing once it expires; this reads the current
+// one each call instead. Token() returning "" sends no Authorization header.
+//
+// proven-by: remotemcp_test.go
+type DynamicBearerTransport struct {
+	Token func() string
+	Base  http.RoundTripper
+}
+
+// RoundTrip adds the current bearer and delegates.
+func (t DynamicBearerTransport) RoundTrip(r *http.Request) (*http.Response, error) {
+	base := t.Base
+	if base == nil {
+		base = http.DefaultTransport
+	}
+	tok := ""
+	if t.Token != nil {
+		tok = t.Token()
+	}
+	if tok != "" {
+		r = r.Clone(r.Context())
+		r.Header.Set("Authorization", "Bearer "+tok)
+	}
+	return base.RoundTrip(r)
+}
+
 // BearerTransport is an http.RoundTripper that adds a static bearer to every
 // request — the simplest auth for a server that accepts the user's token. (For a
 // machine credential, wire oauth2.Transport into the http.Client instead.)

@@ -86,3 +86,22 @@ func TestBearerTransport_AddsTheHeader(t *testing.T) {
 type roundTripFunc func(*http.Request) (*http.Response, error)
 
 func (f roundTripFunc) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
+
+func TestDynamicBearerTransport_ReadsTheCurrentToken(t *testing.T) {
+	var seen []string
+	cur := "tok-A"
+	rt := remotemcp.DynamicBearerTransport{
+		Token: func() string { return cur },
+		Base: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+			seen = append(seen, r.Header.Get("Authorization"))
+			return &http.Response{StatusCode: 200, Body: http.NoBody, Header: make(http.Header)}, nil
+		}),
+	}
+	req, _ := http.NewRequest(http.MethodGet, "https://x/mcp", nil)
+	_, _ = rt.RoundTrip(req)
+	cur = "tok-B" // the credential rotated between calls
+	_, _ = rt.RoundTrip(req)
+	if len(seen) != 2 || seen[0] != "Bearer tok-A" || seen[1] != "Bearer tok-B" {
+		t.Fatalf("expected the fresh token each call, got %v", seen)
+	}
+}
